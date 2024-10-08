@@ -1,0 +1,252 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quiz Platform with Leaderboard</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+        .container {
+            max-width: 800px;
+            margin: auto;
+            background: white;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        h1, h2 {
+            text-align: center;
+            color: #333;
+        }
+        .question {
+            margin-bottom: 20px;
+        }
+        .options {
+            list-style-type: none;
+            padding: 0;
+        }
+        .options li {
+            margin-bottom: 10px;
+        }
+        .options label {
+            display: block;
+            padding: 10px;
+            background-color: #f0f0f0;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        .options label:hover {
+            background-color: #e0e0e0;
+        }
+        input[type="radio"] {
+            margin-right: 10px;
+        }
+        button {
+            display: block;
+            width: 100%;
+            padding: 10px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+            margin-bottom: 10px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        #result, #leaderboard {
+            text-align: center;
+            font-size: 18px;
+            margin-top: 20px;
+        }
+        #leaderboard-list {
+            list-style-type: none;
+            padding: 0;
+        }
+        #leaderboard-list li {
+            background-color: #f0f0f0;
+            margin-bottom: 5px;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        #leaderboard-list li.current-user {
+            background-color: #ffe066;
+            font-weight: bold;
+        }
+        #user-input {
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        #user-input input {
+            padding: 10px;
+            font-size: 16px;
+            width: 200px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Quiz Platform with Leaderboard</h1>
+        <div id="user-input">
+            <input type="text" id="username" placeholder="Enter your username">
+            <button id="start-quiz">Start Quiz</button>
+        </div>
+        <div id="quiz-container" style="display: none;">
+            <div id="question-container"></div>
+            <button id="submit-btn" disabled>Submit Answer</button>
+        </div>
+        <div id="result"></div>
+        <div id="leaderboard">
+            <h2>Leaderboard</h2>
+            <ul id="leaderboard-list"></ul>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+
+        socket.on('connect', () => {
+    console.log('Connected to the server');
+            });
+        socket.on('disconnect', () => {
+    console.log('Disconnected from the server');
+            });
+
+
+        // Quiz data
+        const quizData = [
+            {
+                question: "What is the capital of France?",
+                options: ["London", "Berlin", "Paris", "Madrid"],
+                correctAnswer: 2
+            },
+            {
+                question: "Which planet is known as the Red Planet?",
+                options: ["Venus", "Mars", "Jupiter", "Saturn"],
+                correctAnswer: 1
+            },
+            {
+                question: "Who painted the Mona Lisa?",
+                options: ["Van Gogh", "Picasso", "Da Vinci", "Rembrandt"],
+                correctAnswer: 2
+            }
+        ];
+
+        let currentQuestionIndex = 0;
+        let score = 0;
+        let username = '';
+
+        const questionContainer = document.getElementById('question-container');
+        const submitBtn = document.getElementById('submit-btn');
+        const resultDiv = document.getElementById('result');
+        const leaderboardList = document.getElementById('leaderboard-list');
+        const usernameInput = document.getElementById('username');
+        const startQuizBtn = document.getElementById('start-quiz');
+        const quizContainer = document.getElementById('quiz-container');
+        const userInputContainer = document.getElementById('user-input');
+
+        startQuizBtn.addEventListener('click', () => {
+            username = usernameInput.value.trim();
+            if (username) {
+                userInputContainer.style.display = 'none';
+                quizContainer.style.display = 'block';
+                loadQuestion();
+            } else {
+                alert('Please enter a username to start the quiz.');
+            }
+        });
+
+        function loadQuestion() {
+            const currentQuestion = quizData[currentQuestionIndex];
+            let questionHTML = `
+                <div class="question">
+                    <h2>${currentQuestion.question}</h2>
+                    <ul class="options">
+            `;
+
+            currentQuestion.options.forEach((option, index) => {
+                questionHTML += `
+                    <li>
+                        <label>
+                            <input type="radio" name="quiz" value="${index}">
+                            ${option}
+                        </label>
+                    </li>
+                `;
+            });
+
+            questionHTML += `
+                    </ul>
+                </div>
+            `;
+
+            questionContainer.innerHTML = questionHTML;
+
+            document.querySelectorAll('input[type="radio"]').forEach(radio => {
+                radio.addEventListener('change', () => {
+                    submitBtn.disabled = false;
+                });
+            });
+        }
+
+        function checkAnswer() {
+            const selectedOption = document.querySelector('input[type="radio"]:checked');
+            if (selectedOption) {
+                const answer = parseInt(selectedOption.value);
+                if (answer === quizData[currentQuestionIndex].correctAnswer) {
+                    score++;
+                }
+                currentQuestionIndex++;
+                if (currentQuestionIndex < quizData.length) {
+                    loadQuestion();
+                } else {
+                    showResult();
+                }
+            }
+        }
+
+        function showResult() {
+            questionContainer.style.display = 'none';
+            submitBtn.style.display = 'none';
+            resultDiv.innerHTML = `
+                <h2>Quiz Completed!</h2>
+                <p>Your score: ${score} out of ${quizData.length}</p>
+            `;
+
+            // Submit score to server
+            socket.emit('submitScore', { username, score });
+        }
+
+        // Update leaderboard when receiving updates from server
+        socket.on('leaderboardUpdate', (leaderboardData) => {
+            leaderboardList.innerHTML = '';
+            leaderboardData.forEach((user, index) => {
+                const li = document.createElement('li');
+                li.textContent = `${index + 1}. ${user.username}: ${user.score}`;
+                if (user.username === username) {
+                    li.classList.add('current-user');
+                }
+                leaderboardList.appendChild(li);
+            });
+        });
+
+        submitBtn.addEventListener('click', checkAnswer);
+    </script>
+</body>
+</html>
